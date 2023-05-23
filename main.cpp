@@ -8,12 +8,14 @@
 #define M_PI 3.14159265358979323846
 #endif
 
+#define M_PIf ((float)M_PI)
 
-static int K_PARTICLES = 300;
-static int WORLD_WIDTH = 1920;
-static int WORLD_HEIGTH = 1080;
-static int DOT_SIZE = 2;
-static sf::Vector2f DOT_OFSET = sf::Vector2f(DOT_SIZE, DOT_SIZE);
+constexpr int K_PARTICLES = 300;
+constexpr int WORLD_WIDTH = 1920;
+constexpr int WORLD_HEIGTH = 1080;
+constexpr int DOT_SIZE = 2;
+constexpr float DOT_SIZEf = static_cast<float>(DOT_SIZE);
+static sf::Vector2f DOT_OFSET = sf::Vector2f(DOT_SIZEf, DOT_SIZEf);
 
 // Simple struct to hold particle data
 struct Particle {
@@ -52,9 +54,15 @@ void normalize(sf::Vector2f& vec)
     if (!normVec == 0) vec /= normVec;
 }
 
+__forceinline
+float saturate(float x)
+{
+    return x < 0.0f ? 0.0f : ( x > 1.0f ? 1.0f : x );
+}
+
 sf::Color getColor(int type) {
     // Convert the type to a hue value between 0 and 360 degrees
-    float hue = (type % 16) * (360.0f / 16.0f);
+    float hue = ((float)(type % 16)) * (360.0f / 16.0f);
 
     // For simplicity, we'll keep saturation and lightness constant
     float saturation = 1.0f;
@@ -65,22 +73,24 @@ sf::Color getColor(int type) {
     float x = c * (1.0f - std::abs(std::fmod(hue / 60.0f, 2.0f) - 1.0f));
     float m = lightness - c / 2.0f;
 
-    float r = 0, g = 0, b = 0;
-    if (0 <= hue && hue < 60) {
-        r = c, g = x, b = 0;
-    } else if (60 <= hue && hue < 120) {
-        r = x, g = c, b = 0;
-    } else if (120 <= hue && hue < 180) {
-        r = 0, g = c, b = x;
-    } else if (180 <= hue && hue < 240) {
-        r = 0, g = x, b = c;
-    } else if (240 <= hue && hue < 300) {
-        r = x, g = 0, b = c;
-    } else if (300 <= hue && hue < 360) {
-        r = c, g = 0, b = x;
+    float r = 0.0f, g = 0.0f, b = 0.0f;
+    if (0.0f <= hue && hue < 60.0f ) {
+        r = c, g = x, b = 0.0f;
+    } else if (60.0f <= hue && hue < 120.0f ) {
+        r = x, g = c, b = 0.0f;
+    } else if (120.0f <= hue && hue < 180.0f ) {
+        r = 0.0f, g = c, b = x;
+    } else if (180.0f <= hue && hue < 240.0f ) {
+        r = 0.0f, g = x, b = c;
+    } else if (240.0f <= hue && hue < 300.0f ) {
+        r = x, g = 0.0f, b = c;
+    } else if (300.0f <= hue && hue < 360.0f ) {
+        r = c, g = 0.0f, b = x;
     }
 
-    return sf::Color((r + m) * 255, (g + m) * 255, (b + m) * 255);
+    return sf::Color(( sf::Uint8 )std::round(saturate(r + m) * 255),
+                     ( sf::Uint8 )std::round(saturate(g + m) * 255),
+                     ( sf::Uint8 )std::round(saturate(b + m) * 255));
 }
 
 struct Model {
@@ -96,11 +106,11 @@ struct Model {
     void init()
     {
         // Initialize random number generator
-        std::uniform_int_distribution<> disType(0, 15);
-        std::uniform_real_distribution<> disX(-WORLD_WIDTH/16, WORLD_WIDTH/16);
-        std::uniform_real_distribution<> disY(-WORLD_HEIGTH/16, WORLD_HEIGTH/16);
-        std::uniform_real_distribution<> disV(-2, 2);
-        std::uniform_real_distribution<> disA(0, 2.0*M_PI);
+        std::uniform_int_distribution<int> disType(0, 15);
+        std::uniform_real_distribution<float> disX(-((float)WORLD_WIDTH)/16.0f, ((float)WORLD_WIDTH)/16.0f);
+        std::uniform_real_distribution<float> disY(-((float)WORLD_HEIGTH)/16.0f, ((float)WORLD_HEIGTH)/16.0f);
+        std::uniform_real_distribution<float> disV(-2.0f, 2.0f);
+        std::uniform_real_distribution<float> disA(0.0f, 2.0f* M_PIf);
 
         // Initialize particles
         particles.clear();
@@ -133,13 +143,13 @@ struct Model {
         float teta = 0.15f;
 
         //Compute poles locations of the other particle
-        sf::Vector2f aRVect2 = unitVectorFromAngle(orientation2+teta/2.0+M_PI/2.0);
+        sf::Vector2f aRVect2 = unitVectorFromAngle(orientation2+teta/2.0f+ M_PIf /2.0f);
         sf::Vector2f aRPole2 = pos2 + 5.0f * aRVect2;
-        sf::Vector2f aLVect2 = unitVectorFromAngle(orientation2-teta/2.0-M_PI/2.0);
+        sf::Vector2f aLVect2 = unitVectorFromAngle(orientation2-teta/2.0f-M_PIf/2.0f);
         sf::Vector2f aLPole2 = pos2 + 5.0f * aLVect2;
         float DR = norm(aRPole2 - pos1);
         float DL = norm(aLPole2 - pos1);
-        float repFactor = rNorm < 5.0 ? 30.0f : 1.0f;
+        float repFactor = rNorm < 5.0f ? 30.0f : 1.0f;
         if (DR < DL)
         {
             dv = repFactor*strengthF/(DR+1.0f)*(aRPole2 - pos1)/DR;
@@ -159,10 +169,12 @@ struct Model {
             deltaOrientation -= teta;
         }
         // Make sure deltaOrientation is between -pi and pi
-        while (deltaOrientation > M_PI) deltaOrientation -= 2 * M_PI;
-        while (deltaOrientation < -M_PI) deltaOrientation += 2 * M_PI;
+        while (deltaOrientation > M_PIf)
+            deltaOrientation -= 2.0f * M_PIf;
+        while (deltaOrientation < -M_PIf)
+            deltaOrientation += 2.0f * M_PIf;
 
-        if (deltaOrientation > 0)
+        if (deltaOrientation > 0.0f )
         {
             dva = strengthT;
         }
@@ -191,10 +203,10 @@ struct Model {
 
         // Calculate the force
         // The force magnitude depends on the relative orientation
-        float forceMagnitude = strengthF * cosOrientation * (sinDeltaForceOrientation * sinDeltaForceOrientation - 0.2);
+        float forceMagnitude = strengthF * cosOrientation * (sinDeltaForceOrientation * sinDeltaForceOrientation - 0.2f);
         // Solid repulsion
-        if (rNorm < 2.0*DOT_SIZE)
-            forceMagnitude = -1000.0;
+        if (rNorm < 2.0f*((float)DOT_SIZE))
+            forceMagnitude = -1000.0f;
 
         force = r * (forceMagnitude / rNorm);
 
@@ -212,16 +224,16 @@ struct Model {
 
         // Calculate the force and torque on particle p due to all other particles
         for (auto& p : particles) {
-            p.force = sf::Vector2f(0.0, 0.0);
-            p.torque = 0.0;
+            p.force = sf::Vector2f(0.0f, 0.0f);
+            p.torque = 0.0f;
             for (Particle& other : particles) {
                 if (&other != &p) {  // Avoid self-interaction
                     sf::Vector2f r = other.position - p.position;
                     float rNorm = norm(r);
                     if (rNorm < interactionRadius) {  // Consider only particles within the interaction radius
                         // Calculate force and torque using appropriate model
-                        sf::Vector2f force(0.0, 0.0);
-                        float torque = 0.0;
+                        sf::Vector2f force(0.0f, 0.0f);
+                        float torque = 0.0f;
                         calculateForceAndTorque(r, rNorm, p.orientation, other.orientation, force, torque);
                         p.force += force;
                         p.torque += torque;
@@ -235,7 +247,7 @@ struct Model {
                         //p.velocity += dv;
                         //p.angularVelocity += dva;
 
-                        if (rNorm < 2.0*DOT_SIZE)
+                        if (rNorm < 2.0f*((float)DOT_SIZE) )
                             p.force += r * (-100.0f / rNorm);
                     }
                 }
@@ -247,32 +259,32 @@ struct Model {
             }
 
             // Containing forces
-            if (p.position.x > WORLD_WIDTH/2) p.force += sf::Vector2f(-0.1,0.0);
-            if (p.position.x < -WORLD_WIDTH/2) p.force += sf::Vector2f(0.1,0.0);
-            if (p.position.y > WORLD_HEIGTH/2) p.force += sf::Vector2f(0.0,-0.1);
-            if (p.position.y < -WORLD_HEIGTH/2) p.force += sf::Vector2f(0.0,0.1);
+            if (p.position.x > WORLD_WIDTH/2) p.force += sf::Vector2f(-0.1f,0.0f);
+            if (p.position.x < -WORLD_WIDTH/2) p.force += sf::Vector2f(0.1f,0.0f);
+            if (p.position.y > WORLD_HEIGTH/2) p.force += sf::Vector2f(0.0f,-0.1f);
+            if (p.position.y < -WORLD_HEIGTH/2) p.force += sf::Vector2f(0.0f,0.1f);
         }
 
         for (auto& p : particles) {
             // Calculate the acceleration and angular acceleration (assuming mass and moment of inertia = 1)
             sf::Vector2f acceleration = p.force;
             float angularAcceleration = p.torque;
-            float dt = 0.01;
+            float dt = 0.01f;
 
             // Using naive algo
             p.velocity = p.velocity + acceleration * dt;
             p.angularVelocity = p.angularVelocity + angularAcceleration * dt;
-            float maxVelocity = 50.0;
+            float maxVelocity = 50.0f;
             if (norm(p.velocity) > maxVelocity) {
                 normalize(p.velocity);
                 p.velocity *= maxVelocity;
             }
             //Force attract to center to incentive interactions
-            p.velocity -= multiply(p.position, 0.01);
+            p.velocity -= multiply(p.position, 0.01f);
             //Sticky dissipative space and other limits
-            p.velocity = multiply(p.velocity, 0.90);
-            p.angularVelocity *= 0.96;
-            float maxAngularVelocity = 10.0;
+            p.velocity = multiply(p.velocity, 0.90f);
+            p.angularVelocity *= 0.96f;
+            float maxAngularVelocity = 10.0f;
             if (p.angularVelocity > maxAngularVelocity) p.angularVelocity = maxAngularVelocity;
             if (p.angularVelocity < -maxAngularVelocity) p.angularVelocity = -maxAngularVelocity;
             p.position = p.position + p.velocity * dt;
@@ -307,7 +319,7 @@ void drawModel(sf::RenderWindow& ioWindow, const Model& iModel) {
             ioWindow.draw(lines);
         }*/
 
-        float tailLength = 10.0;
+        float tailLength = 10.0f;
         sf::Vertex line[] =
         {
             sf::Vertex(p.position, sf::Color::White),
@@ -368,7 +380,7 @@ int main()
     Model myModel;
 
     // Create a view with the same size as the window
-    sf::View view(sf::FloatRect(-WORLD_WIDTH/2, -WORLD_HEIGTH/2, WORLD_WIDTH, WORLD_HEIGTH));
+    sf::View view(sf::FloatRect(-((float)WORLD_WIDTH)*0.5f, -((float)WORLD_HEIGTH)*0.5f, WORLD_WIDTH, WORLD_HEIGTH));
 
     // Variables to store the state of mouse dragging
     bool isDragging = false;
